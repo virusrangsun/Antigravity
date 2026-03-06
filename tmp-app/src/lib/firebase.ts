@@ -5,13 +5,13 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyB8HQl5EHq7y1udVKwbB1V1olQ-j504hdc",
-    authDomain: "antigravity-d339a.firebaseapp.com",
-    projectId: "antigravity-d339a",
-    storageBucket: "antigravity-d339a.firebasestorage.app",
-    messagingSenderId: "98857956438",
-    appId: "1:98857956438:web:61c13fbe82e29c0ace77f7",
-    measurementId: "G-DFFVVLPR82"
+    apiKey: "AIzaSyDiD65LGguaQrTNF4XGjdG0lbLAQ8q9mqs",
+    authDomain: "antigravity-c7f41.firebaseapp.com",
+    projectId: "antigravity-c7f41",
+    storageBucket: "antigravity-c7f41.firebasestorage.app",
+    messagingSenderId: "8017093116",
+    appId: "1:8017093116:web:f742c810d235c55cfb5279",
+    measurementId: "G-25E00YR39N"
 };
 
 // Initialize Firebase
