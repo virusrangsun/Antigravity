@@ -7,7 +7,7 @@ import { formatWeight, todayISO } from "@/lib/utils";
 import type { Transaction } from "@/lib/types";
 
 interface ImportFormProps {
-    onSubmit: (data: Omit<Transaction, "id" | "weightKg">) => { success: boolean; error: string | null };
+    onSubmit: (data: Omit<Transaction, "id" | "weightKg">) => Promise<{ success: boolean; error: string | null }>;
 }
 
 export default function ImportForm({ onSubmit }: ImportFormProps) {
@@ -18,14 +18,18 @@ export default function ImportForm({ onSubmit }: ImportFormProps) {
     const [date, setDate] = useState(todayISO);
     const [note, setNote] = useState("");
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const weight = quantity ? calcWeight(productId, Number(quantity)) : 0;
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        if (!quantity || Number(quantity) <= 0) return;
+        if (!quantity || Number(quantity) <= 0 || isSubmitting) return;
 
-        const result = onSubmit({
+        setIsSubmitting(true);
+        setMessage(null);
+
+        const result = await onSubmit({
             type: "import",
             productId,
             quantity: Number(quantity),
@@ -34,6 +38,8 @@ export default function ImportForm({ onSubmit }: ImportFormProps) {
             invoiceNumber: invoiceNumber.trim() || undefined,
             note: note.trim() || undefined,
         });
+
+        setIsSubmitting(false);
 
         if (result.success) {
             setMessage({ type: "success", text: `Đã nhập ${quantity} cây ${STEEL_PRODUCTS.find(p => p.id === productId)?.name}` });
@@ -153,9 +159,9 @@ export default function ImportForm({ onSubmit }: ImportFormProps) {
                 </div>
             </div>
 
-            <button type="submit" className="tx-submit-btn tx-submit-btn--import">
+            <button type="submit" className="tx-submit-btn tx-submit-btn--import" disabled={isSubmitting}>
                 <PackagePlus size={18} aria-hidden="true" />
-                Nhập kho
+                {isSubmitting ? "Đang xử lý..." : "Nhập kho"}
             </button>
         </form>
     );

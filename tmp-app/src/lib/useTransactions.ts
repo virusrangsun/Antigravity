@@ -1,48 +1,49 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import { Transaction, StockLevel, StockSettings, MonthlyRow } from "./types";
-import { generateId } from "./utils";
 import { STEEL_PRODUCTS, DEFAULT_MIN_STOCK, calcWeight } from "./steelProducts";
-
-const TX_KEY = "steel_transactions";
-const SETTINGS_KEY = "steel_stock_settings";
-
-function loadData<T>(key: string, fallback: T): T {
-    if (typeof window === "undefined") return fallback;
-    try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-    } catch {
-        return fallback;
-    }
-}
-
-function saveData<T>(key: string, data: T) {
-    localStorage.setItem(key, JSON.stringify(data));
-}
 
 export function useInventory() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [stockSettings, setStockSettings] = useState<StockSettings>({});
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Load from localStorage
+    // Load transactions from Firestore
     useEffect(() => {
-        setTransactions(loadData<Transaction[]>(TX_KEY, []));
-        setStockSettings(loadData<StockSettings>(SETTINGS_KEY, {}));
-        setIsLoaded(true);
+        const unsubscribe = onSnapshot(collection(db, "transactions"), (snapshot) => {
+            const txs: Transaction[] = [];
+            snapshot.forEach((doc) => {
+                txs.push({ id: doc.id, ...doc.data() } as Transaction);
+            });
+            // Sort by date descending
+            txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setTransactions(txs);
+            setIsLoaded(true);
+        }, (error) => {
+            console.error("Error fetching transactions:", error);
+            setIsLoaded(true); // Prevent infinite loading state on error
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    // Persist transactions
+    // Load settings from Firestore
     useEffect(() => {
-        if (isLoaded) saveData(TX_KEY, transactions);
-    }, [transactions, isLoaded]);
+        const unsubscribe = onSnapshot(collection(db, "settings"), (snapshot) => {
+            const settings: StockSettings = {};
+            snapshot.forEach((doc) => {
+                settings[doc.id] = doc.data().minStock;
+            });
+            setStockSettings(settings);
+        }, (error) => {
+            console.error("Error fetching settings:", error);
+        });
 
-    // Persist settings
-    useEffect(() => {
-        if (isLoaded) saveData(SETTINGS_KEY, stockSettings);
-    }, [stockSettings, isLoaded]);
+        return () => unsubscribe();
+    }, []);
 
     // Compute stock levels
     const stockLevels: StockLevel[] = useMemo(() => {
@@ -75,7 +76,7 @@ export function useInventory() {
 
     // Add transaction
     const addTransaction = useCallback(
-        (data: Omit<Transaction, "id" | "weightKg">) => {
+        async (data: Omit<Transaction, "id" | "weightKg">) => {
             // Block export if insufficient stock
             if (data.type === "export") {
                 const current = stockLevels.find((s) => s.productId === data.productId)?.currentStock ?? 0;
@@ -84,22 +85,35 @@ export function useInventory() {
                 }
             }
 
-            const weightKg = calcWeight(data.productId, data.quantity);
-            const newTx: Transaction = { ...data, id: generateId(), weightKg };
-            setTransactions((prev) => [newTx, ...prev]);
-            return { success: true, error: null };
+            try {
+                const weightKg = calcWeight(data.productId, data.quantity);
+                const txData = { ...data, weightKg };
+                await addDoc(collection(db, "transactions"), txData);
+                return { success: true, error: null };
+            } catch (error: any) {
+                console.error("Error adding transaction:", error);
+                return { success: false, error: error.message || "Lỗi khi lưu dữ liệu lên đám mây" };
+            }
         },
         [stockLevels]
     );
 
     // Delete transaction
-    const deleteTransaction = useCallback((id: string) => {
-        setTransactions((prev) => prev.filter((t) => t.id !== id));
+    const deleteTransaction = useCallback(async (id: string) => {
+        try {
+            await deleteDoc(doc(db, "transactions", id));
+        } catch (error) {
+            console.error("Error deleting transaction:", error);
+        }
     }, []);
 
     // Update min stock setting
-    const updateMinStock = useCallback((productId: string, min: number) => {
-        setStockSettings((prev) => ({ ...prev, [productId]: min }));
+    const updateMinStock = useCallback(async (productId: string, min: number) => {
+        try {
+            await setDoc(doc(db, "settings", productId), { minStock: min }, { merge: true });
+        } catch (error) {
+            console.error("Error updating min stock:", error);
+        }
     }, []);
 
     // Low-stock products

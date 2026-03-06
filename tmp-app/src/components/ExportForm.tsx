@@ -7,7 +7,7 @@ import { formatWeight, formatNumber, todayISO } from "@/lib/utils";
 import type { Transaction } from "@/lib/types";
 
 interface ExportFormProps {
-    onSubmit: (data: Omit<Transaction, "id" | "weightKg">) => { success: boolean; error: string | null };
+    onSubmit: (data: Omit<Transaction, "id" | "weightKg">) => Promise<{ success: boolean; error: string | null }>;
     getStock: (productId: string) => number;
 }
 
@@ -19,16 +19,20 @@ export default function ExportForm({ onSubmit, getStock }: ExportFormProps) {
     const [date, setDate] = useState(todayISO);
     const [note, setNote] = useState("");
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const currentStock = getStock(productId);
     const weight = quantity ? calcWeight(productId, Number(quantity)) : 0;
     const isOverStock = quantity ? Number(quantity) > currentStock : false;
 
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        if (!quantity || Number(quantity) <= 0) return;
+        if (!quantity || Number(quantity) <= 0 || isSubmitting) return;
 
-        const result = onSubmit({
+        setIsSubmitting(true);
+        setMessage(null);
+
+        const result = await onSubmit({
             type: "export",
             productId,
             quantity: Number(quantity),
@@ -37,6 +41,8 @@ export default function ExportForm({ onSubmit, getStock }: ExportFormProps) {
             invoiceNumber: invoiceNumber.trim() || undefined,
             note: note.trim() || undefined,
         });
+
+        setIsSubmitting(false);
 
         if (result.success) {
             const product = STEEL_PRODUCTS.find(p => p.id === productId);
@@ -169,9 +175,9 @@ export default function ExportForm({ onSubmit, getStock }: ExportFormProps) {
                 </div>
             </div>
 
-            <button type="submit" className="tx-submit-btn tx-submit-btn--export" disabled={isOverStock || currentStock <= 0}>
+            <button type="submit" className="tx-submit-btn tx-submit-btn--export" disabled={isOverStock || currentStock <= 0 || isSubmitting}>
                 <PackageMinus size={18} aria-hidden="true" />
-                Xuất kho
+                {isSubmitting ? "Đang xử lý..." : "Xuất kho"}
             </button>
         </form>
     );
