@@ -87,7 +87,15 @@ export function useInventory() {
 
             try {
                 const weightKg = calcWeight(data.productId, data.quantity);
-                const txData = { ...data, weightKg };
+                const txData: any = { ...data, weightKg };
+
+                // Firestore throws an error if fields are explicitly set to undefined
+                Object.keys(txData).forEach(key => {
+                    if (txData[key] === undefined) {
+                        delete txData[key];
+                    }
+                });
+
                 await addDoc(collection(db, "transactions"), txData);
                 return { success: true, error: null };
             } catch (error: any) {
