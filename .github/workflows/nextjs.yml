@@ -31,9 +31,6 @@ jobs:
           cache: npm
           cache-dependency-path: ./tmp-app/package-lock.json
           
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-        
       - name: Install dependencies
         run: npm ci
         
